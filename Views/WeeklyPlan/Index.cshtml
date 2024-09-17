@@ -1,0 +1,162 @@
+﻿@model BordoProje.ViewModels.WeeklyPlanViewModel
+
+
+
+<h2 style="font-size: 24px; font-weight: bold;">Weekly Plan for @Model.EmployeeName</h2>
+<p style="font-size: 18px; color: #555;">Email: @Model.EmployeeEmail</p>
+
+<div class="container">
+    <h2 style="font-size: 22px; font-weight: bold; margin-bottom: 20px;">Haftalık Plan Formu</h2>
+
+    <form asp-action="SaveWorkHours" method="post">
+        <!-- Bölüm 1: Geçen Hafta -->
+        <div class="form-group">
+            <label for="PreWeekBriefing" style="font-size: 18px; font-weight: bold;">Geçen hafta yaptığınız çalışmalar, toplantılar ve izlenimleriniz hakkında bilgi veriniz:</label>
+            <textarea class="form-control" id="PreWeekBriefing" name="PreWeekBriefing" rows="4" style="font-size: 16px; margin-bottom: 20px;"></textarea>
+        </div>
+
+        <!-- Bölüm 2: Bu hafta mesai saatleri -->
+        <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 20px;">Bölüm 2: Bu hafta hangi gün, hangi saatlerde tahmini mesai yapacaksınız?</h2>
+        <div id="work-hours-section">
+            <table class="table table-bordered" style="margin-bottom: 20px;">
+                <thead>
+                    <tr>
+                        <th style="font-size: 16px;">Gün</th>
+                        <th style="font-size: 16px;">Başlangıç Saati</th>
+                        <th style="font-size: 16px;">Bitiş Saati</th>
+                    </tr>
+                </thead>
+                <tbody id="work-hours-container">
+                    @for (int i = 1; i <= 7; i++) // Monday - Sunday
+                    {
+                        <tr>
+                            <td style="font-size: 16px;">@((DayOfWeek)(i % 7))</td>
+                            <td>
+                                <input type="hidden" name="WorkHours[@i].Day" value="@((DayOfWeek)(i % 7))" />
+                                <input type="time" name="WorkHours[@i].StartTime" class="form-control" style="font-size: 16px;" />
+                            </td>
+                            <td>
+                                <input type="time" name="WorkHours[@i].EndTime" class="form-control" style="font-size: 16px;" />
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            <button type="button" id="add-work-hour" class="btn btn-secondary" style="margin-bottom: 20px;">Yeni Saat Ekle</button>
+        </div>
+
+        <!-- Toplam çalışma saatini gösterecek alan -->
+        <div class="form-group">
+            <label for="TotalWorkHours" style="font-size: 18px; font-weight: bold;">Toplam Çalışma Saati:</label>
+            <input type="number" id="TotalWorkHours" class="form-control" readonly style="font-size: 16px;" />
+        </div>
+
+        <div class="form-group" style="margin-bottom: 20px;">
+            <label for="IsNonWorkingWeek" style="font-size: 18px;">
+                <input type="checkbox" id="IsNonWorkingWeek" name="IsNonWorkingWeek" style="margin-right: 10px;" />
+                Çalışmadığım Hafta
+            </label>
+        </div>
+
+        <!-- Bölüm 3: Mevcut işler için ayrılan süre -->
+        <div class="form-group">
+            <label for="ExistingTasks" style="font-size: 18px; font-weight: bold;">Bu haftaki mesainizde, halihazırda üzerinizde olan işlere tahmini ne kadar vakit gidecek? İşleri maddeleyerek belirtir misiniz?</label>
+            <div id="existing-tasks-container" style="margin-bottom: 20px;">
+                <input type="text" class="form-control mb-2" name="ExistingTasks[0].Title" placeholder="İş 1 Başlığı" style="font-size: 16px;" />
+                <input type="number" class="form-control mb-2" name="ExistingTasks[0].Duration" placeholder="Tahmini Süre (saat)" style="font-size: 16px;" />
+                <input type="text" class="form-control mb-2" name="ExistingTasks[1].Title" placeholder="İş 2 Başlığı" style="font-size: 16px;" />
+                <input type="number" class="form-control mb-2" name="ExistingTasks[1].Duration" placeholder="Tahmini Süre (saat)" style="font-size: 16px;" />
+                <!-- Daha fazla iş eklemek için buraya benzer alanlar ekleyebilirsiniz -->
+            </div>
+            <button type="button" id="add-existing-task" class="btn btn-secondary" style="margin-bottom: 20px;">Yeni İş Ekle</button>
+        </div>
+
+        <!-- Bölüm 4: Kalan çalışma süresini gösterecek alan -->
+        <div class="form-group">
+            <label for="AdditionalHours" style="font-size: 18px; font-weight: bold;">Üzerinizde olan işler ve mesai planınıza göre, bu hafta kaç saat daha yeni iş alabilirim?</label>
+            <input type="number" id="AdditionalHours" class="form-control" style="font-size: 16px; margin-bottom: 20px;" />
+        </div>
+
+        <div class="form-group">
+            <label for="AvailableWorkDuration" style="font-size: 18px; font-weight: bold;">Bu haftaki kalan toplam saat:</label>
+            <input type="number" id="AvailableWorkDuration" class="form-control" readonly style="font-size: 16px;" />
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="margin-top: 20px;">Kaydet</button>
+    </form>
+</div>
+
+<script>
+    // Haftayı çalışmıyorum işaretliyse diğer bölümleri gizle
+    document.getElementById("IsNonWorkingWeek").addEventListener("change", function () {
+        let workHoursSection = document.getElementById("work-hours-section");
+        if (this.checked) {
+            workHoursSection.style.display = "none";
+        } else {
+            workHoursSection.style.display = "block";
+        }
+    });
+
+    // Herhangi bir WorkHour alanı değiştiğinde toplam saatleri hesapla
+    function calculateTotalWorkHours() {
+        let totalWorkHours = 0;
+
+        // Tüm satırlardaki başlangıç ve bitiş saatlerini kontrol et
+        document.querySelectorAll("tbody tr").forEach(row => {
+            let startTimeInput = row.querySelector("input[name*='StartTime']");
+            let endTimeInput = row.querySelector("input[name*='EndTime']");
+
+            if (startTimeInput.value && endTimeInput.value) {
+                let startTime = new Date(`1970-01-01T${startTimeInput.value}`);
+                let endTime = new Date(`1970-01-01T${endTimeInput.value}`);
+
+                if (startTime < endTime) {
+                    let diffInHours = (endTime - startTime) / (1000 * 60 * 60); // Saat cinsinden hesapla
+                    totalWorkHours += diffInHours;
+                }
+            }
+        });
+
+        // Toplam çalışma saatini input'a yaz
+        document.getElementById("TotalWorkHours").value = totalWorkHours.toFixed(2);
+        return totalWorkHours;
+    }
+
+    // Toplam saat ve mevcut işlere ayrılan saat farkını hesapla
+    function updateAvailableWorkDuration() {
+        let totalWorkHours = calculateTotalWorkHours();
+        let existingTaskHours = Array.from(document.querySelectorAll("input[name*='ExistingTasks']")).reduce((sum, input) => {
+            let value = parseFloat(input.value) || 0;
+            return sum + value;
+        }, 0);
+        let availableHours = totalWorkHours - existingTaskHours;
+
+        // Negatif saat olmayacak şekilde sıfırla
+        document.getElementById("AvailableWorkDuration").value = availableHours >= 0 ? availableHours.toFixed(2) : 0;
+    }
+
+    // WorkHours alanları değiştiğinde toplam saatleri güncelle
+    document.querySelectorAll("input[name*='WorkHours']").forEach(input => {
+        input.addEventListener("change", updateAvailableWorkDuration);
+    });
+
+    // Mevcut iş saati değiştiğinde de toplam saatleri güncelle
+    document.querySelectorAll("input[name*='ExistingTasks']").forEach(input => {
+        input.addEventListener("input", updateAvailableWorkDuration);
+    });
+
+    // Form yüklendiğinde başlangıçta toplam saatleri hesapla
+    window.addEventListener('load', updateAvailableWorkDuration);
+
+    // Yeni iş ekleme işlevi
+    document.getElementById("add-existing-task").addEventListener("click", function () {
+        let container = document.getElementById("existing-tasks-container");
+        let index = container.children.length / 2;
+        let newTaskHTML = `
+                        <input type="text" class="form-control mb-2" name="ExistingTasks[${index}].Title" placeholder="İş ${index + 1} Başlığı" />
+                        <input type="number" class="form-control mb-2" name="ExistingTasks[${index}].Duration" placeholder="Tahmini Süre (saat)" />
+                    `;
+        container.insertAdjacentHTML('beforeend', newTaskHTML);
+    });
+</script>
